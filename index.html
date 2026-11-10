@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>열린 게시판 | 사용자 & 관리자 소통 공간</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pretendard:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- 상단 네비게이션 헤더 -->
+  <header class="header">
+    <div class="container header-container">
+      <div class="brand" onclick="resetFilters()">
+        <div class="brand-icon">📋</div>
+        <div class="brand-text">
+          <h1>열린 게시판</h1>
+          <p class="brand-sub">날짜와 조회를 한눈에 확인하는 단순 소통 게시판</p>
+        </div>
+      </div>
+
+      <!-- 사용자/관리자 상태 및 액션 -->
+      <div class="header-actions">
+        <div id="roleIndicator" class="role-badge role-user">
+          <span class="role-icon">👤</span> <span id="currentRoleText">일반 사용자 모드</span>
+        </div>
+        <button id="btnAdminToggle" class="btn btn-outline" onclick="openAdminModal()">
+          <span class="btn-icon">🔐</span> <span id="adminBtnText">관리자 로그인</span>
+        </button>
+        <button class="btn btn-primary" onclick="openWriteModal()">
+          <span class="btn-icon">✏️</span> 글쓰기
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 관리자 모드 활성화 알림 바 -->
+  <div id="adminBanner" class="admin-banner hidden">
+    <div class="container admin-banner-container">
+      <div class="admin-banner-text">
+        <span>👑 <strong>관리자 권한 활성화됨</strong>: 공지사항 상단 고정 등록, 전체 글/댓글 수정 및 삭제, 비밀글 즉시 열람이 가능합니다.</span>
+      </div>
+      <button class="btn-banner-logout" onclick="adminLogout()">관리자 로그아웃</button>
+    </div>
+  </div>
+
+  <!-- 서버 연결 경고 배너 -->
+  <div id="serverConnBanner" class="server-conn-banner hidden">
+    <div class="container conn-banner-container">
+      <span>⚠️ <strong>서버(http://localhost:3000)와 연결할 수 없습니다.</strong> 터미널에서 <code>node server.js</code> 또는 <code>npm start</code>로 서버가 켜져 있는지 확인해 주세요.</span>
+      <button class="btn-retry" onclick="location.reload()">새로고침</button>
+    </div>
+  </div>
+
+  <!-- file:// 접속 안내 배너 -->
+  <div id="protocolNoticeBanner" class="protocol-notice-banner hidden">
+    <div class="container conn-banner-container">
+      <span>💡 <strong>안내</strong>: 현재 로컬 파일(file://)로 열려 있습니다. 원활한 소통 및 기능을 위해 브라우저 주소창에 <strong><a href="http://localhost:3000" style="color:#2563eb; text-decoration:underline;">http://localhost:3000</a></strong> 을 직접 입력해 접속해 주세요.</span>
+    </div>
+  </div>
+
+  <main class="container main-content">
+    <!-- 상단 주요 지표 요약 바 (날짜/조회/글 수 등 전체 현황) -->
+    <section class="summary-stats-bar">
+      <div class="summary-stat-item" onclick="filterByRole('all')">
+        <span class="stat-title">전체 글</span>
+        <span class="stat-num" id="statTotal">-</span>
+      </div>
+      <div class="summary-stat-item" onclick="filterByCategory('공지')">
+        <span class="stat-title">📌 공지사항</span>
+        <span class="stat-num stat-notice" id="statNotices">-</span>
+      </div>
+      <div class="summary-stat-item" onclick="filterByRole('user')">
+        <span class="stat-title">👤 사용자 글</span>
+        <span class="stat-num stat-user" id="statUserPosts">-</span>
+      </div>
+      <div class="summary-stat-item">
+        <span class="stat-title">👁️ 누적 조회수</span>
+        <span class="stat-num stat-views" id="statTotalViews">-</span>
+      </div>
+    </section>
+
+    <!-- 검색 및 필터 컨트롤 바 -->
+    <section class="board-controls">
+      <!-- 1층: 작성자 구분 탭 (전체 / 👑 관리자 / 👤 사용자) & 뷰 모드 토글 -->
+      <div class="controls-row-top">
+        <div class="role-tabs" id="roleTabs">
+          <button class="tab-btn active" data-role="all" onclick="setRoleTab('all')">전체 글</button>
+          <button class="tab-btn" data-role="admin" onclick="setRoleTab('admin')">👑 관리자 글(공지)</button>
+          <button class="tab-btn" data-role="user" onclick="setRoleTab('user')">👤 사용자 글</button>
+        </div>
+
+        <div class="view-and-sort">
+          <div class="view-toggle">
+            <button id="btnViewTable" class="view-btn active" title="표(목록) 형태 - 날짜/조회수 한눈에 보기" onclick="setViewMode('table')">
+              📋 목록형
+            </button>
+            <button id="btnViewCard" class="view-btn" title="카드 형태 - 요약 내용 보기" onclick="setViewMode('card')">
+              🗂️ 카드형
+            </button>
+          </div>
+
+          <div class="sort-wrapper">
+            <select id="sortSelect" onchange="loadPosts()">
+              <option value="latest">최신 등록순</option>
+              <option value="views">조회수 높은순</option>
+              <option value="likes">추천(공감) 많은순</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2층: 카테고리 필터 & 검색창 -->
+      <div class="controls-row-bottom">
+        <div class="category-pills" id="categoryPills">
+          <button class="pill active" data-cat="전체" onclick="setCategoryPill('전체')">전체</button>
+          <button class="pill pill-notice" data-cat="공지" onclick="setCategoryPill('공지')">공지</button>
+          <button class="pill" data-cat="일반" onclick="setCategoryPill('일반')">일반</button>
+          <button class="pill" data-cat="질문" onclick="setCategoryPill('질문')">질문</button>
+          <button class="pill" data-cat="건의" onclick="setCategoryPill('건의')">건의</button>
+          <button class="pill" data-cat="정보" onclick="setCategoryPill('정보')">정보</button>
+        </div>
+
+        <div class="search-box">
+          <input type="text" id="searchInput" placeholder="제목, 내용, 작성자 검색..." onkeyup="if(event.key==='Enter') loadPosts()">
+          <button class="btn-search" onclick="loadPosts()" title="검색">🔍</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- 게시판 메인 컨테이너: 1. 목록형 테이블 (기본: 날짜와 조회수가 한눈에 보임) -->
+    <section id="tableViewSection" class="board-table-wrapper">
+      <table class="board-table">
+        <thead>
+          <tr>
+            <th class="col-no">번호</th>
+            <th class="col-cat">분류</th>
+            <th class="col-title">제목</th>
+            <th class="col-author">작성자</th>
+            <th class="col-date">작성일</th>
+            <th class="col-views">조회</th>
+            <th class="col-likes">추천</th>
+          </tr>
+        </thead>
+        <tbody id="boardTableBody">
+          <!-- 동적 로드 -->
+        </tbody>
+      </table>
+    </section>
+
+    <!-- 게시판 메인 컨테이너: 2. 카드형 뷰 (토글 시) -->
+    <section id="cardViewSection" class="board-cards-grid hidden">
+      <!-- 동적 로드 -->
+    </section>
+
+    <!-- 게시글 없음 상태 -->
+    <div id="emptyState" class="empty-state hidden">
+      <div class="empty-icon">📝</div>
+      <h3>등록된 게시글이 없습니다.</h3>
+      <p>가장 먼저 새로운 글을 작성해 보세요!</p>
+      <button class="btn btn-primary" onclick="openWriteModal()">새 글 작성하기</button>
+    </div>
+  </main>
+
+  <!-- ===================================================================== -->
+  <!-- 모달 창들 (Modal Dialogs) -->
+  <!-- ===================================================================== -->
+
+  <!-- 1. 글 작성 모달 (사용자 / 관리자 모드에 따라 입력 폼 자동 최적화) -->
+  <div id="writeModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="writeModalTitle">✏️ 새 글 작성</h2>
+        <button class="modal-close" onclick="closeModal('writeModal')">&times;</button>
+      </div>
+      <form id="writeForm" onsubmit="submitPost(event)">
+        <!-- 작성자 권한 안내 배너 -->
+        <div id="writeRoleBanner" class="modal-role-banner banner-user">
+          👤 <strong>일반 사용자</strong> 권한으로 작성합니다.
+        </div>
+
+        <!-- 관리자 전용: 공지사항 상단 고정 옵션 -->
+        <div id="adminNoticeOptionGroup" class="form-group admin-notice-box hidden">
+          <label class="checkbox-label notice-checkbox-label">
+            <input type="checkbox" id="postIsNotice">
+            <span>📌 <strong>공지사항으로 상단 고정 등록</strong> (목록 최상단에 항상 고정)</span>
+          </label>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col-half">
+            <label for="postCategory">분류</label>
+            <select id="postCategory" class="form-select">
+              <option value="일반">일반</option>
+              <option value="질문">질문</option>
+              <option value="건의">건의</option>
+              <option value="정보">정보</option>
+              <option value="공지" id="optionNotice" class="hidden">공지사항 (관리자 전용)</option>
+            </select>
+          </div>
+          <div class="form-group col-half">
+            <label for="postAuthorName">작성자명</label>
+            <input type="text" id="postAuthorName" required placeholder="예: 길동이, 닉네임">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="postTitle">제목</label>
+          <input type="text" id="postTitle" required placeholder="제목을 입력해 주세요">
+        </div>
+
+        <div class="form-group">
+          <label for="postContent">내용</label>
+          <textarea id="postContent" rows="7" required placeholder="자유롭게 내용을 작성해 주세요."></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col-half" id="writePinGroup">
+            <label for="postPin">수정/삭제 비밀번호 (4~8자리)</label>
+            <input type="password" id="postPin" maxlength="8" minlength="4" placeholder="예: 1234">
+            <small class="helper-text">나중에 본인 글을 수정하거나 삭제할 때 사용됩니다.</small>
+          </div>
+          <div class="form-group col-half flex-center-end">
+            <label class="checkbox-label">
+              <input type="checkbox" id="postIsSecret">
+              <span>🔒 비밀글 설정 (작성자와 관리자만 열람)</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('writeModal')">취소</button>
+          <button type="submit" class="btn btn-primary">등록 완료</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 2. 게시글 상세 모달 (날짜, 조회수, 작성자 구분, 댓글 등) -->
+  <div id="detailModal" class="modal">
+    <div class="modal-content modal-lg">
+      <div class="modal-header">
+        <div class="detail-header-badges">
+          <span id="detailNoticeBadge" class="badge badge-notice hidden">📌 공지</span>
+          <span id="detailCategory" class="badge badge-category">분류</span>
+          <span id="detailSecret" class="badge badge-secret hidden">🔒 비밀글</span>
+        </div>
+        <button class="modal-close" onclick="closeModal('detailModal')">&times;</button>
+      </div>
+
+      <div class="detail-body">
+        <h2 id="detailTitle" class="detail-title">게시글 제목</h2>
+        
+        <!-- 글 정보 메타 바 (작성자 [구분], 작성일, 조회수, 추천수) -->
+        <div class="detail-meta-bar">
+          <div class="detail-author-info">
+            <span class="meta-label">작성자:</span>
+            <span id="detailAuthorWrapper" class="author-tag">
+              <!-- 작성자 뱃지 삽입 -->
+            </span>
+          </div>
+          <div class="detail-metrics-info">
+            <span>📅 작성일: <strong id="detailDate">-</strong></span>
+            <span>👁️ 조회수: <strong id="detailViews">0</strong></span>
+            <span>❤️ 추천: <strong id="detailLikes">0</strong></span>
+          </div>
+        </div>
+
+        <!-- 본문 내용 -->
+        <div id="detailContent" class="detail-text-content">
+          <!-- 동적 로드 -->
+        </div>
+
+        <!-- 추천 및 수정/삭제 액션 바 -->
+        <div class="detail-actions-bar">
+          <button id="btnLike" class="btn btn-like" onclick="likePost()">
+            ❤️ <span id="likeCountText">추천 0</span>
+          </button>
+          
+          <div class="detail-sub-actions">
+            <button class="btn btn-outline-sm" onclick="openEditModal()">수정</button>
+            <button class="btn btn-outline-sm text-danger" onclick="openDeleteModal()">삭제</button>
+            <button id="btnAdminNoticeToggle" class="btn btn-admin-action hidden" onclick="toggleNotice()">
+              📌 공지 고정/해제
+            </button>
+          </div>
+        </div>
+
+        <hr class="divider">
+
+        <!-- 댓글 영역 -->
+        <div class="comments-section">
+          <h3>💬 댓글 <span id="commentCountHeader" class="comment-count-badge">0</span></h3>
+          
+          <!-- 댓글 작성 폼 -->
+          <form id="commentForm" class="comment-write-form" onsubmit="submitComment(event)">
+            <textarea id="commentInput" rows="2" required placeholder="댓글을 입력해 주세요."></textarea>
+            <div class="comment-form-footer">
+              <div class="comment-inputs-left">
+                <input type="text" id="commentAuthorInput" placeholder="작성자명" class="comment-small-input">
+                <input type="password" id="commentPinInput" maxlength="8" minlength="4" placeholder="비밀번호(4자리)" class="comment-small-input">
+              </div>
+              <button type="submit" class="btn btn-primary btn-sm">댓글 등록</button>
+            </div>
+          </form>
+
+          <!-- 댓글 목록 -->
+          <div id="commentsList" class="comments-list">
+            <!-- 동적 로드 -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. 비밀글 비밀번호(PIN) 확인 모달 -->
+  <div id="secretPinModal" class="modal">
+    <div class="modal-content modal-sm">
+      <div class="modal-header">
+        <h3>🔒 비밀글 열람</h3>
+        <button class="modal-close" onclick="closeModal('secretPinModal')">&times;</button>
+      </div>
+      <p class="modal-desc">작성 시 입력한 비밀번호(PIN)를 입력해 주세요.</p>
+      <form onsubmit="verifySecretPin(event)">
+        <div class="form-group">
+          <input type="password" id="secretInputPin" required maxlength="8" placeholder="비밀번호 4~8자리" autofocus>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('secretPinModal')">취소</button>
+          <button type="submit" class="btn btn-primary">열람하기</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 4. 글 수정 모달 -->
+  <div id="editModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2>✏️ 게시글 수정</h2>
+        <button class="modal-close" onclick="closeModal('editModal')">&times;</button>
+      </div>
+      <form id="editForm" onsubmit="submitEditPost(event)">
+        <div class="form-row">
+          <div class="form-group col-half">
+            <label for="editCategory">분류</label>
+            <select id="editCategory" class="form-select">
+              <option value="일반">일반</option>
+              <option value="질문">질문</option>
+              <option value="건의">건의</option>
+              <option value="정보">정보</option>
+              <option value="공지">공지</option>
+            </select>
+          </div>
+          <div class="form-group col-half">
+            <label for="editAuthorName">작성자명</label>
+            <input type="text" id="editAuthorName" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="editTitle">제목</label>
+          <input type="text" id="editTitle" required>
+        </div>
+
+        <div class="form-group">
+          <label for="editContent">내용</label>
+          <textarea id="editContent" rows="7" required></textarea>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group col-half" id="editPinGroup">
+            <label for="editPin">작성 시 비밀번호</label>
+            <input type="password" id="editPin" placeholder="4~8자리 비밀번호">
+          </div>
+          <div class="form-group col-half flex-center-end">
+            <label class="checkbox-label">
+              <input type="checkbox" id="editIsSecret">
+              <span>🔒 비밀글 설정</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('editModal')">취소</button>
+          <button type="submit" class="btn btn-primary">수정 완료</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 5. 글 삭제 확인 모달 -->
+  <div id="deleteModal" class="modal">
+    <div class="modal-content modal-sm">
+      <div class="modal-header">
+        <h3>🗑️ 게시글 삭제</h3>
+        <button class="modal-close" onclick="closeModal('deleteModal')">&times;</button>
+      </div>
+      <p class="modal-desc">정말로 이 게시글을 삭제하시겠습니까? 삭제 후에는 복구할 수 없습니다.</p>
+      <form onsubmit="submitDeletePost(event)">
+        <div class="form-group" id="deletePinGroup">
+          <label for="deletePin">작성 시 비밀번호</label>
+          <input type="password" id="deletePin" placeholder="4~8자리 비밀번호" autofocus>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('deleteModal')">취소</button>
+          <button type="submit" class="btn btn-danger">삭제하기</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 6. 관리자 로그인 모달 -->
+  <div id="adminModal" class="modal">
+    <div class="modal-content modal-sm">
+      <div class="modal-header">
+        <h3>🔐 관리자 로그인</h3>
+        <button class="modal-close" onclick="closeModal('adminModal')">&times;</button>
+      </div>
+      <form onsubmit="submitAdminLogin(event)">
+        <div class="form-group">
+          <label for="adminPasswordInput">관리자 마스터 비밀번호</label>
+          <input type="password" id="adminPasswordInput" required placeholder="기본 비밀번호: admin1234" autofocus>
+          <small class="helper-text">관리자 로그인 시 공지 등록 및 전체 글 관리 권한이 부여됩니다.</small>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeModal('adminModal')">취소</button>
+          <button type="submit" class="btn btn-primary">로그인</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 토스트 알림 컨테이너 -->
+  <div id="toastContainer" class="toast-container"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
