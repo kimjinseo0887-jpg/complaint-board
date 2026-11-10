@@ -2,6 +2,8 @@
 
 사용자와 관리자를 명확하게 구분하고, 작성일과 조회수 등을 직관적인 표(목록) 형태로 한눈에 쉽게 확인할 수 있도록 최적화된 **단순 게시판 웹 애플리케이션**입니다.
 
+🔗 **GitHub 저장소 링크**: [https://github.com/kimjinseo0887-jpg/repoA-](https://github.com/kimjinseo0887-jpg/repoA-)
+
 ---
 
 ## ✨ 핵심 특징 및 개선 사항
