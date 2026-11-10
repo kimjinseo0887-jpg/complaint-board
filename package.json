@@ -1,0 +1,13 @@
+{
+  "name": "simple-bulletin-board",
+  "version": "1.0.0",
+  "description": "사용자와 관리자를 구분하고 날짜와 조회를 쉽게 보는 단순 게시판",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
+
